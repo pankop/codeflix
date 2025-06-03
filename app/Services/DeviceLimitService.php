@@ -5,16 +5,11 @@ namespace App\Services;
 use App\Models\User;
 use App\Models\UserDevice;
 use Illuminate\Support\Str;
-use Jenssegers\Agent\Facades\Agent;
+use Jenssegers\Agent\Agent;
+
 
 class DeviceLimitService
 {
-    protected Agent $agent;
-
-    public function __construct(Agent $agent)
-    {
-        $this->agent = $agent;
-    }
     public function registerDevice(User $user)
     {
         $deviceInfo = $this->getDeviceInfo();
@@ -36,7 +31,7 @@ class DeviceLimitService
         return $device;
     }
 
-    public function logoutDevice($deviceId)
+    public function logoutDevice($deviceId): void
     {
         UserDevice::where('device_id', $deviceId)->delete();
         session()->forget('device_id');
@@ -44,19 +39,21 @@ class DeviceLimitService
 
     private function getDeviceInfo(): array
     {
+        $agent = app(Agent::class); // Ambil instance, bukan pakai Facade
+
         return [
-            'device_name' => $this->generateDeviceName(),
-            'device_type' => Agent::isDesktop() ? 'desktop' : (Agent::isPhone() ? 'phone' : 'tablet'),
-            'platform' => Agent::platform(),
-            'platform_version' => Agent::version(Agent::platform()),
-            'browser' => Agent::browser(),
-            'browser_version' => Agent::version(Agent::browser())
+            'device_name' => $this->generateDeviceName($agent),
+            'device_type' => $agent->isDesktop() ? 'desktop' : ($agent->isPhone() ? 'phone' : 'tablet'),
+            'platform' => $agent->platform(),
+            'platform_version' => $agent->version($agent->platform()),
+            'browser' => $agent->browser(),
+            'browser_version' => $agent->version($agent->browser())
         ];
     }
 
-    private function generateDeviceName(): string
+    private function generateDeviceName($agent): string
     {
-        return ucfirst(Agent::platform()) . ' ' . ucfirst(Agent::browser());
+        return ucfirst($agent->platform()) . ' ' . ucfirst($agent->browser());
     }
 
     private function findExistingDevice(User $user, array $deviceInfo)
@@ -74,7 +71,7 @@ class DeviceLimitService
         return UserDevice::where('user_id', $user->id)->count() >= $maxDevices;
     }
 
-    private function createNewDevice(User $user, array $deviceInfo)
+    private function createNewDevice(User $user, array $deviceInfo): UserDevice
     {
         return UserDevice::create([
             'user_id' => $user->id,
